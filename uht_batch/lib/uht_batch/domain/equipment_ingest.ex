@@ -11,7 +11,7 @@ defmodule UhtBatch.Domain.EquipmentIngest do
 
   alias UhtBatch.Domain.Event
 
-  @allowed_devices ~w(valve_bank aseptic_tank filler filler_line uht_hold uht)
+  @allowed_devices ~w(valve_bank aseptic_tank filler filler_line uht_hold uht packaging_splicer)
 
   @allowed_status %{
     "valve_bank" => ~w(closed open idle isolated),
@@ -19,7 +19,10 @@ defmodule UhtBatch.Domain.EquipmentIngest do
     "filler" => ~w(idle running short_stop fault isolated),
     "filler_line" => ~w(idle running short_stop fault isolated),
     "uht_hold" => ~w(heating holding idle fault),
-    "uht" => ~w(heating holding idle fault)
+    "uht" => ~w(heating holding idle fault),
+    # 包装材料卷接头机只读状态：splice_detected=检测到接头（待操作员确认），
+    # splice_failed=并接失败（待操作员确认）
+    "packaging_splicer" => ~w(idle running splice_detected splice_failed fault isolated)
   }
 
   @control_markers ~w(command cmd setpoint target actuate open_valve close_valve
@@ -50,15 +53,23 @@ defmodule UhtBatch.Domain.EquipmentIngest do
           device_id: device_id,
           device_type: device_type,
           status: status,
-          subject: subject
+          subject: subject,
+          splice_seq: parse_seq(payload["splice_seq"] || payload[:splice_seq]),
+          out_roll_id: payload["out_roll_id"] || payload[:out_roll_id],
+          in_roll_id: payload["in_roll_id"] || payload[:in_roll_id]
         },
         raw_equipment_log: sanitize_raw(payload)
       }
 
-      if status == "short_stop" do
-        {:ok, evt, :pending_operator_confirmation}
-      else
-        {:ok, evt}
+      cond do
+        status == "short_stop" ->
+          {:ok, evt, :pending_operator_confirmation}
+
+        status in ["splice_detected", "splice_failed"] ->
+          {:ok, evt, {:pending_operator_confirmation, :splice, status}}
+
+        true ->
+          {:ok, evt}
       end
     end
   end
@@ -101,6 +112,17 @@ defmodule UhtBatch.Domain.EquipmentIngest do
       _ -> nil
     end
   end
+
+  defp parse_seq(n) when is_integer(n), do: n
+
+  defp parse_seq(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp parse_seq(_), do: nil
 
   defp reject_control_fields(payload) do
     keys = payload |> Map.keys() |> Enum.map(&to_string/1)

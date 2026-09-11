@@ -28,7 +28,14 @@ defmodule UhtBatch.Domain.Checks do
       open_filling_stops(s),
       sterility_samples(s, policy),
       sample_lineage(s),
-      chronology(s)
+      chronology(s),
+      roll_label_mismatches(s),
+      unconfirmed_equipment_splices(s),
+      open_splice_failures(s),
+      splice_interface_overlaps(s),
+      pending_splice_segments(s),
+      splice_segment_samples(s),
+      rejected_splice_segments(s)
     ]
     |> List.flatten()
     |> Enum.reject(&is_nil/1)
@@ -209,6 +216,104 @@ defmodule UhtBatch.Domain.Checks do
     if out_of_order > 0 do
       warn("DEV-CHAIN-REORDER", "写入流中有 #{out_of_order} 处发生时间倒置（以补传异常列表为准）", :both)
     end
+  end
+
+  ## 6a. 包装材料卷标签错（未核实关闭前阻断）
+  defp roll_label_mismatches(s) do
+    case find_open(s, Decide.deviation_code(:roll_label_mismatch)) do
+      nil ->
+        # 也覆盖“卷状态仍是 mismatch 但偏差未列出”的防御性场景
+        case State.label_mismatched_rolls(s) do
+          [] -> nil
+          _ -> block("DEV-ROLL-LABEL", "存在标签异常且未核实的包装材料卷", :both)
+        end
+
+      d ->
+        block(d.code, "包装材料卷标签异常未关闭：#{d.reason}", :both)
+    end
+  end
+
+  ## 6b. 设备接头传感器信号未经操作员确认（迟报信号本身不得自动成事实）
+  defp unconfirmed_equipment_splices(s) do
+    case find_open(s, Decide.deviation_code(:equipment_splice_unconfirmed)) do
+      nil ->
+        nil
+
+      d ->
+        block(d.code, "设备报告的接头信号尚未经操作员确认：#{d.reason}", :both)
+    end
+  end
+
+  ## 6c. 两卷并接失败未处置
+  defp open_splice_failures(s) do
+    s
+    |> State.open_splice_failures()
+    |> Enum.map(fn f ->
+      block(
+        "DEV-SPLICE-FAIL",
+        "接头序号 #{f.splice_seq}（#{f.out_roll_id} → #{f.attempted_in_roll_id}）并接失败未处置：#{f.reason}",
+        :both
+      )
+    end)
+  end
+
+  ## 6d. 卷切换恰逢产品界面，界面去向未澄清前接头段不得接受
+  defp splice_interface_overlaps(s) do
+    code = Decide.deviation_code(:splice_coincides_interface)
+
+    s.deviations
+    |> Map.values()
+    |> Enum.filter(&(&1.status == :open and &1.code == code))
+    |> Enum.map(fn d ->
+      block(
+        code,
+        "接头序号 #{d.context[:splice_seq]} 与产品界面 #{d.context[:interface_id]} 重叠且去向未澄清：#{d.reason}",
+        :both
+      )
+    end)
+  end
+
+  ## 6e. 接头区间默认待复核：逐段复核前，不能沿用整批放行
+  defp pending_splice_segments(s) do
+    s
+    |> State.pending_splice_segments()
+    |> Enum.map(fn co ->
+      block(
+        "DEV-SPLICE-PENDING",
+        "材料卷 #{co.out_roll_id} → #{co.in_roll_id} 的接头区间" <>
+          "（序号 #{co.seq_before}–#{co.seq_after}）尚未逐段复核，不得随整批放行",
+        :quality
+      )
+    end)
+  end
+
+  ## 6f. 每个接头区间必须有接头样（谱系引用该接头确认事件）
+  defp splice_segment_samples(s) do
+    s.changeovers
+    |> Enum.filter(fn co ->
+      not (co.reviewed == true and co.disposition == :reject)
+    end)
+    |> Enum.reject(&State.splice_sample_registered?(s, &1.event_id))
+    |> Enum.map(fn co ->
+      block(
+        "DEV-SPLICE-SAMPLE-MISSING",
+        "接头序号 #{co.splice_seq} 的区间缺少接头样（谱系须引用接头确认事件 #{co.event_id}）",
+        :quality
+      )
+    end)
+  end
+
+  ## 6g. 已复核拒绝/隔离的接头区间：仅警告并列出隔离序列号
+  defp rejected_splice_segments(s) do
+    s
+    |> State.rejected_splice_segments()
+    |> Enum.map(fn co ->
+      warn(
+        "DEV-SPLICE-SEG-QUARANTINE",
+        "接头序号 #{co.splice_seq} 区间（序号 #{co.seq_before}–#{co.seq_after}）已判隔离，不随本批放行",
+        :quality
+      )
+    end)
   end
 
   defp find_open(s, code) do

@@ -63,4 +63,37 @@ defmodule UhtBatch.Factory do
       record_ref: "SMP-#{sample_no}"
     })
   end
+
+  def pack_roll(batch_id, roll_id, opts \\ []) do
+    opts = Keyword.put_new(opts, :at, ~U[2026-09-10T10:05:00Z])
+
+    base_cmd(batch_id, opts)
+    |> Map.merge(%{
+      roll_id: roll_id,
+      material_code: opts[:material] || "LAMI-FILM-TBA-200",
+      label_declared: opts[:label] || roll_id,
+      label_verified: Keyword.get(opts, :label_verified, true),
+      record_ref: "ROLL-#{roll_id}"
+    })
+  end
+
+  def changeover(batch_id, out_roll, in_roll, splice_seq, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:at, ~U[2026-09-10T10:40:00Z])
+      |> Keyword.put_new(:seq_before, 12_000)
+      |> Keyword.put_new(:seq_after, 12_020)
+
+    base_cmd(batch_id, opts)
+    |> Map.merge(%{
+      splice_seq: splice_seq,
+      out_roll_id: out_roll,
+      in_roll_id: in_roll,
+      seq_before: opts[:seq_before],
+      seq_after: opts[:seq_after],
+      equipment_log_ref: opts[:eq_log],
+      interface_id: opts[:interface_id],
+      record_ref: "SPLICE-#{splice_seq}"
+    })
+  end
 end

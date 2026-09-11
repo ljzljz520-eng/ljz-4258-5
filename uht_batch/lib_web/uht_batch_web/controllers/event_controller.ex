@@ -72,6 +72,66 @@ defmodule UhtBatchWeb.EventController do
     end)
   end
 
+  def register_pack_roll(conn, params) do
+    run(conn, params, :register_pack_roll, fn b ->
+      Map.merge(b, %{
+        roll_id: params["roll_id"],
+        material_code: params["material_code"],
+        label_declared: params["label_declared"],
+        label_verified: params["label_verified"] == "true"
+      })
+    end)
+  end
+
+  def confirm_roll_changeover(conn, params) do
+    run(conn, params, :confirm_roll_changeover, fn b ->
+      Map.merge(b, %{
+        splice_seq: to_int(params["splice_seq"]),
+        out_roll_id: params["out_roll_id"],
+        in_roll_id: params["in_roll_id"],
+        seq_before: to_int(params["seq_before"]),
+        seq_after: to_int(params["seq_after"]),
+        equipment_log_ref: blank_to_nil(params["equipment_log_ref"]),
+        interface_id: blank_to_nil(params["interface_id"])
+      })
+    end)
+  end
+
+  def record_splice_failure(conn, params) do
+    run(conn, params, :record_splice_failure, fn b ->
+      Map.merge(b, %{
+        splice_seq: to_int(params["splice_seq"]),
+        out_roll_id: params["out_roll_id"],
+        attempted_in_roll_id: params["attempted_in_roll_id"],
+        seq_before: to_int(params["seq_before"]),
+        seq_after: to_int(params["seq_after"]),
+        reason: params["reason"],
+        equipment_log_ref: blank_to_nil(params["equipment_log_ref"])
+      })
+    end)
+  end
+
+  def dispose_splice_failure(conn, params) do
+    run(conn, params, :dispose_splice_failure, fn b ->
+      Map.merge(b, %{
+        splice_seq: to_int(params["splice_seq"]),
+        disposition: String.to_existing_atom(params["disposition"]),
+        detail: params["detail"]
+      })
+    end)
+  end
+
+  def review_splice_segment(conn, params) do
+    run(conn, params, :review_splice_segment, fn b ->
+      Map.merge(b, %{
+        splice_seq: to_int(params["splice_seq"]),
+        disposition: String.to_existing_atom(params["disposition"]),
+        note: params["note"],
+        whole_batch: params["whole_batch"] == "true"
+      })
+    end)
+  end
+
   def record_short_stop(conn, params) do
     run(conn, params, :record_short_stop, fn b ->
       Map.merge(b, %{
@@ -172,4 +232,15 @@ defmodule UhtBatchWeb.EventController do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(v), do: v
+
+  defp to_int(nil), do: nil
+
+  defp to_int(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp to_int(n) when is_integer(n), do: n
 end

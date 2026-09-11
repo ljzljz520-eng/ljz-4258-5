@@ -114,6 +114,10 @@ defmodule UhtBatch.Service do
         dev = pending_equipment_stop_event(evt, now)
         es_module(cfg).append_batch(es_ref(cfg), stream(batch_id), [evt, dev], :any, opts)
 
+      {:ok, %Event{batch_id: batch_id} = evt, {:pending_operator_confirmation, :splice, status}} ->
+        dev = pending_equipment_splice_event(evt, now, status)
+        es_module(cfg).append_batch(es_ref(cfg), stream(batch_id), [evt, dev], :any, opts)
+
       {:error, _} = err ->
         err
     end
@@ -136,6 +140,37 @@ defmodule UhtBatch.Service do
         context: %{
           equipment_log_ref: evt.correlation_id,
           device_id: evt.payload.device_id
+        }
+      },
+      raw_equipment_log: evt.raw_equipment_log
+    }
+  end
+
+  defp pending_equipment_splice_event(evt, now, status) do
+    failure? = status == "splice_failed"
+
+    %Event{
+      id: "dev_#{:erlang.unique_integer([:positive, :monotonic])}",
+      type: :deviation_opened,
+      batch_id: evt.batch_id,
+      occurred_at: evt.occurred_at,
+      recorded_at: now,
+      source: :equipment,
+      correlation_id: evt.correlation_id,
+      operator_id: nil,
+      payload: %{
+        deviation_id: "pendsplice_#{:erlang.unique_integer([:positive, :monotonic])}",
+        code: Decide.deviation_code(:equipment_splice_unconfirmed),
+        reason:
+          "设备（#{evt.payload.device_id}）报告接头#{if failure?, do: "失败", else: "检测"}信号，" <>
+            "等待操作员按批准记录确认（日志 #{evt.correlation_id || "-"}，接头序号 #{evt.payload.splice_seq || "-"}）",
+        context: %{
+          equipment_log_ref: evt.correlation_id,
+          device_id: evt.payload.device_id,
+          splice_seq: evt.payload.splice_seq,
+          splice_kind: if(failure?, do: :failure, else: :detected),
+          out_roll_id: evt.payload.out_roll_id,
+          in_roll_id: evt.payload.in_roll_id
         }
       },
       raw_equipment_log: evt.raw_equipment_log
@@ -217,6 +252,9 @@ defmodule UhtBatch.Service do
     to_batch destination filler_id reason origin equipment_log_ref stop_event_id
     sample_no sample_type lineage deviation_id disposition anomaly_refs
     credential_id correlation_id challenge source event_id policy context code
+    roll_id material_code label_declared label_verified splice_seq out_roll_id
+    in_roll_id seq_before seq_after attempted_in_roll_id detail note whole_batch
+    interface_window_seconds
   )
 
   defp safe_atom(key) do

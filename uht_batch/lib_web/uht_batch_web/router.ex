@@ -33,6 +33,11 @@ defmodule UhtBatchWeb.Router do
     post "/events/transfer", EventController, :transfer_to_tank
     post "/events/interface", EventController, :declare_interface
     post "/events/filling_start", EventController, :start_filling
+    post "/events/pack_roll", EventController, :register_pack_roll
+    post "/events/roll_changeover", EventController, :confirm_roll_changeover
+    post "/events/splice_failure", EventController, :record_splice_failure
+    post "/events/splice_failure/dispose", EventController, :dispose_splice_failure
+    post "/events/splice_segment/review", EventController, :review_splice_segment
     post "/events/short_stop", EventController, :record_short_stop
     post "/events/resume", EventController, :resume_line
     post "/events/sample", EventController, :register_sample

@@ -60,6 +60,7 @@
         <option value="incubation">保温样</option>
         <option value="micro">微生物</option>
         <option value="retain">留样</option>
+        <option value="splice">接头样（接头段）</option>
       </select>
     </label>
     <label>谱系事件 ID（逗号分隔） <input name="lineage" /></label>
@@ -76,6 +77,103 @@
     </label>
     <button>确认补传时序倒置</button>
   </form>
+
+  <section class="rolls">
+    <h2>包装材料卷切换（逐段复核，不得整批放行）</h2>
+
+    <%= if @snap.state do %>
+      <h3>卷-成品序列区间</h3>
+      <ul>
+        <li :for={iv <- UhtBatch.Domain.State.roll_intervals(@snap.state)}>
+          <code>{iv.kind}</code>
+          卷 {iv.roll_id || "#{iv.out_roll_id} → #{iv.in_roll_id}（接头序号 #{iv.splice_seq}）"}
+          · 序列 {iv.from_seq}–{iv.to_seq || "开放端"}
+          <span :if={iv[:kind] == :splice_zone and not iv.reviewed} class="warn">【待复核】</span>
+          <span :if={iv[:kind] == :splice_zone and iv.reviewed}>[{iv.disposition}]</span>
+        </li>
+      </ul>
+    <% end %>
+
+    <form method="post" action="/stations/events/pack_roll">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="page" value="filler" />
+      <label>材料卷号 <input name="roll_id" required /></label>
+      <label>物料编码 <input name="material_code" required /></label>
+      <label>实物标签内容 <input name="label_declared" required /></label>
+      <label>标签已核对
+        <select name="label_verified">
+          <option value="true">与批准记录一致</option>
+          <option value="false">标签异常（开偏差 DEV-ROLL-LABEL）</option>
+        </select>
+      </label>
+      <label>登记时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+      <button>登记材料卷身份</button>
+    </form>
+
+    <form method="post" action="/stations/events/roll_changeover">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="page" value="filler" />
+      <label>接头序号 <input name="splice_seq" type="number" required /></label>
+      <label>换下卷 <input name="out_roll_id" required /></label>
+      <label>换上卷 <input name="in_roll_id" required /></label>
+      <label>区间前序列号 <input name="seq_before" type="number" required /></label>
+      <label>区间后序列号 <input name="seq_after" type="number" required /></label>
+      <label>设备日志编号（传感器迟报时填写以完成确认） <input name="equipment_log_ref" /></label>
+      <label>关联产品界面 ID（如重叠） <input name="interface_id" /></label>
+      <label>接头时点(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+      <button>确认换卷（接头段默认待复核）</button>
+    </form>
+
+    <form method="post" action="/stations/events/splice_failure">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="page" value="filler" />
+      <label>接头序号 <input name="splice_seq" type="number" required /></label>
+      <label>换下卷 <input name="out_roll_id" required /></label>
+      <label>拟接卷（失败） <input name="attempted_in_roll_id" required /></label>
+      <label>失败原因 <input name="reason" required /></label>
+      <label>区间前序列号 <input name="seq_before" type="number" /></label>
+      <label>区间后序列号 <input name="seq_after" type="number" /></label>
+      <label>设备日志编号 <input name="equipment_log_ref" /></label>
+      <label>发生时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+      <button>记录两卷并接失败（DEV-SPLICE-FAIL）</button>
+    </form>
+
+    <form method="post" action="/stations/events/splice_failure/dispose">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="page" value="filler" />
+      <label>失败接头序号 <input name="splice_seq" type="number" required /></label>
+      <label>处置
+        <select name="disposition">
+          <option value="quarantine">区间隔离</option>
+          <option value="retry">重试并接</option>
+          <option value="rework">返工</option>
+        </select>
+      </label>
+      <label>处置说明/隔离序列 <input name="detail" /></label>
+      <label>处置时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+      <button>处置并接失败</button>
+    </form>
+
+    <form method="post" action="/stations/events/splice_segment/review">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="page" value="filler" />
+      <label>接头序号（逐段） <input name="splice_seq" type="number" required /></label>
+      <label>复核结论
+        <select name="disposition">
+          <option value="accept">接受（须有接头样且界面已澄清）</option>
+          <option value="reject">拒绝/隔离该段</option>
+        </select>
+      </label>
+      <label>复核备注 <input name="note" /></label>
+      <label>复核时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+      <button>逐段复核（禁止整批一并放行）</button>
+    </form>
+  </section>
 
   <div class="signoffs">
     <h2>WebAuthn 签署（step-up）</h2>

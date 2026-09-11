@@ -47,6 +47,11 @@ defmodule UhtBatch.Domain.Event do
           | :filling_started
           | :line_short_stop
           | :line_resumed
+          | :pack_roll_registered
+          | :roll_changeover_confirmed
+          | :splice_failure_recorded
+          | :splice_failure_disposed
+          | :splice_segment_reviewed
           | :deviation_opened
           | :deviation_closed
           | :sample_registered
@@ -67,6 +72,11 @@ defmodule UhtBatch.Domain.Event do
       :filling_started,
       :line_short_stop,
       :line_resumed,
+      :pack_roll_registered,
+      :roll_changeover_confirmed,
+      :splice_failure_recorded,
+      :splice_failure_disposed,
+      :splice_segment_reviewed,
       :deviation_opened,
       :deviation_closed,
       :sample_registered,

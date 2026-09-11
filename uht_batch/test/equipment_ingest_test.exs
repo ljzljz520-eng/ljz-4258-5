@@ -27,6 +27,43 @@ defmodule UhtBatch.EquipmentIngestTest do
              )
   end
 
+  test "接头机检测/失败状态返回接头待确认元组并保留接头上下文" do
+    payload = %{
+      "batch_id" => "B1",
+      "status" => "splice_detected",
+      "splice_seq" => "7",
+      "out_roll_id" => "ROLL-A",
+      "in_roll_id" => "ROLL-B"
+    }
+
+    assert {:ok, evt, {:pending_operator_confirmation, :splice, "splice_detected"}} =
+             EquipmentIngest.translate(
+               "uht.status.packaging_splicer.SPLICER-2",
+               payload,
+               now()
+             )
+
+    assert evt.payload.device_type == "packaging_splicer"
+    assert evt.payload.splice_seq == 7
+    assert evt.payload.out_roll_id == "ROLL-A"
+
+    assert {:ok, _evt, {:pending_operator_confirmation, :splice, "splice_failed"}} =
+             EquipmentIngest.translate(
+               "uht.status.packaging_splicer.SPLICER-2",
+               %{"batch_id" => "B1", "status" => "splice_failed", "splice_seq" => 8},
+               now()
+             )
+  end
+
+  test "接头机控制字段同样被拒绝" do
+    assert {:error, {:control_field_rejected, "actuate"}} =
+             EquipmentIngest.translate(
+               "uht.status.packaging_splicer.SPLICER-2",
+               %{"batch_id" => "B1", "status" => "splice_detected", "actuate" => "cut"},
+               now()
+             )
+  end
+
   test "拒绝控制字段、非法 subject、非法状态与缺失批次" do
     assert {:error, {:control_field_rejected, "setpoint"}} =
              EquipmentIngest.translate(
