@@ -2,7 +2,9 @@ defmodule UhtBatchWeb.Layouts do
   @moduledoc false
   use UhtBatchWeb, :html
 
-  def render("app.html", assigns) do
+  # Phoenix 1.7+ 函数组件布局：由控制器以 {UhtBatchWeb.Layouts, :app} 调用，
+  # 页面内容通过 @inner_content 注入（保持原样输出，不做转义）。
+  def app(assigns) do
     ~H"""
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -21,7 +23,7 @@ defmodule UhtBatchWeb.Layouts do
           </nav>
           <p class="signer">签署人：<%= @conn.assigns[:signer_id] %></p>
         </header>
-        <main>{render_slot(@inner_block)}</main>
+        <main><%= @inner_content %></main>
         <footer>只读追溯/事实确认系统 — 不连接阀阵或灌装机的控制通道</footer>
       </body>
     </html>

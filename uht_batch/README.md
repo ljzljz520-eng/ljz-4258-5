@@ -60,15 +60,21 @@ mix test
 
 ## 运行
 
-### 离线核心（无任何外部依赖，标准库即可）
+### 离线核心（默认检出路径，无网络、无外部依赖）
 
-仓库不提交 `mix.lock` 时，`mix test` 只编译 `lib/` 核心与内存适配器：
+仓库**不提交** `mix.lock` 与 `deps/`。干净检出下 `mix.exs` 只声明标准库
+核心（`lib/` + 内存适配器），`mix test` 全程不需要网络：
 
 ```sh
 mix test
+# 17 tests, 0 failures
 ```
 
 ### 完整环境（EventStoreDB / NATS / WebAuthn / Phoenix）
+
+`mix deps.get` 需要网络：拉取依赖并在本地生成 `mix.lock`
+（lock 已被 `.gitignore` 忽略，不会提交）。lock 存在时 `mix.exs`
+自动把 `lib_integrations/` 与 `lib_web/` 纳入编译：
 
 ```sh
 mix deps.get
@@ -77,6 +83,16 @@ NATS_URL=nats://nats:4222 \
 WEBAUTHN_MODE=wax \
 mix phx.server  # 或 mix run --no-halt
 ```
+
+三个变量由 `config/runtime.exs` 在**每次启动时**读取，注入
+`UhtBatch.Service` 读取的 `:service` 配置与应用监督树；不设置则以
+内存/测试适配器启动（工位页面仍可离线访问）：
+
+| 变量 | 作用 |
+| --- | --- |
+| `EVENTSTORE_URL` | 事件存储切换为 Spear/EventStoreDB，并按该 URL 启动连接（断线自动重连） |
+| `NATS_URL` | 启动 gnat 只读订阅连接，设备状态管道开始消费 `uht.status.>` |
+| `WEBAUTHN_MODE=wax` | WebAuthn 断言验证切换为 wax_（默认 Fake 适配器仅供开发/测试） |
 
 工位页面（WebAuthn 会话保护）：
 

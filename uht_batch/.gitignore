@@ -1,5 +1,6 @@
 /_build/
 /deps/
+/mix.lock
 /.elixir_ls/
 /erl_crash.dump
 /*.ez
