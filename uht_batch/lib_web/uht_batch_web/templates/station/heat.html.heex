@@ -1,0 +1,40 @@
+<section class="station">
+  <h1>热处理工位（受控）</h1>
+  <p class="hint">仅确认“按批准记录发生的事实”。本页不提供任何温度/压力/保持时间输入。</p>
+
+  <form method="get">
+    <input type="text" name="batch_id" value={@batch_id} placeholder="批次号" />
+    <button type="submit">载入批次</button>
+  </form>
+
+  <div class="chain">
+    <h2>事实链</h2>
+    <ul>
+      <li :for={e <- (@snap && @snap.events) || []}>
+        <code>{e.type}</code>
+        <span>{Calendar.strftime(e.occurred_at, "%Y-%m-%d %H:%M:%S")} UTC</span>
+        <span>{e.source}</span>
+      </li>
+    </ul>
+  </div>
+
+  <form method="post" action="/stations/events/pretreatment">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="heat" />
+    <label>预处理记录编号 <input name="record_ref" required /></label>
+    <label>产品代码 <input name="product_code" required /></label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认预处理状态</button>
+  </form>
+
+  <form method="post" action="/stations/events/heat_pass">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="heat" />
+    <label>热处理记录编号 <input name="record_ref" required /></label>
+    <label>产线 <input name="line_id" required /></label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认热处理通过</button>
+  </form>
+</section>

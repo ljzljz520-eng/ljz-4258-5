@@ -1,0 +1,53 @@
+<section class="station">
+  <h1>无菌缓冲工位（受控）</h1>
+
+  <form method="get">
+    <input type="text" name="batch_id" value={@batch_id} placeholder="批次号" />
+    <button type="submit">载入批次</button>
+  </form>
+
+  <div class="equipment">
+    <h2>隔离设备只读状态（NATS）</h2>
+    <ul>
+      <li :for={sig <- (@snap && @snap.state && @snap.state.equipment_signals) || []}>
+        <span>{sig.device_id}</span> → <strong>{sig.status}</strong>
+        <em>发生 {Calendar.strftime(sig.at, "%H:%M:%S")} / 接收
+          {Calendar.strftime(sig.recorded_at, "%H:%M:%S")}</em>
+      </li>
+    </ul>
+  </div>
+
+  <div class="findings">
+    <h2>平台核查（界面段/时间/谱系）</h2>
+    <ul>
+      <li :for={f <- (@snap && @snap.findings) || []} class={f.severity}>
+        <code>{f.code}</code> {f.message}
+      </li>
+    </ul>
+  </div>
+
+  <form method="post" action="/stations/events/transfer">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="buffer" />
+    <label>无菌罐 <input name="tank_id" required /></label>
+    <label>上批批次（底液身份；未知可留空） <input name="previous_batch" /></label>
+    <label>含上批底液
+      <select name="heel_present"><option value="false">否</option><option value="true">是</option></select>
+    </label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认转罐事实</button>
+  </form>
+
+  <form method="post" action="/stations/events/interface">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="buffer" />
+    <label>界面编号 <input name="interface_id" required /></label>
+    <label>产品 A <input name="product_a" required /></label>
+    <label>产品 B <input name="product_b" required /></label>
+    <label>去向（留空=去向不明，将开偏差） <input name="destination" /></label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认产品界面</button>
+  </form>
+</section>

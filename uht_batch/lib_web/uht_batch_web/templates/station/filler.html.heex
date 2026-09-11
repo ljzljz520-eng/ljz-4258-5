@@ -1,0 +1,104 @@
+<section class="station">
+  <h1>灌装工位（受控）</h1>
+
+  <form method="get">
+    <input type="text" name="batch_id" value={@batch_id} placeholder="批次号" />
+    <button type="submit">载入批次</button>
+  </form>
+
+  <div class="blockers">
+    <h2>签署门禁</h2>
+    <h3>生产签署阻断项</h3>
+    <ul>
+      <li :for={b <- @production_blockers}><code>{b.code}</code> {b.message}</li>
+      <li :if={@production_blockers == []} class="ok">无阻断项</li>
+    </ul>
+    <h3>质量签署阻断项（含样品谱系）</h3>
+    <ul>
+      <li :for={b <- @quality_blockers}><code>{b.code}</code> {b.message}</li>
+      <li :if={@quality_blockers == []} class="ok">无阻断项</li>
+    </ul>
+  </div>
+
+  <form method="post" action="/stations/events/filling_start">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="filler" />
+    <label>灌装线 <input name="line_id" required /></label>
+    <label>灌装机 <input name="filler_id" required /></label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认灌装开始</button>
+  </form>
+
+  <form method="post" action="/stations/events/short_stop">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="filler" />
+    <label>短停原因 <input name="reason" required /></label>
+    <label>设备日志编号（设备信号时填写以完成确认） <input name="equipment_log_ref" /></label>
+    <label>发生时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认短停事实</button>
+  </form>
+
+  <form method="post" action="/stations/events/resume">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="filler" />
+    <label>短停事件 ID <input name="stop_event_id" required /></label>
+    <label>恢复时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>确认恢复</button>
+  </form>
+
+  <form method="post" action="/stations/events/sample">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="filler" />
+    <label>样品编号（全局唯一） <input name="sample_no" required /></label>
+    <label>样品类型
+      <select name="sample_type">
+        <option value="commercial_sterility">商业无菌</option>
+        <option value="incubation">保温样</option>
+        <option value="micro">微生物</option>
+        <option value="retain">留样</option>
+      </select>
+    </label>
+    <label>谱系事件 ID（逗号分隔） <input name="lineage" /></label>
+    <label>记录时间(UTC) <input type="datetime-local" name="occurred_at" required /></label>
+    <button>登记样品</button>
+  </form>
+
+  <form method="post" action="/stations/events/backfill/ack">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input type="hidden" name="batch_id" value={@batch_id} />
+    <input type="hidden" name="page" value="filler" />
+    <label>补传异常对（格式 后插入事件id|先前事件id；多个用 ; 分隔）
+      <input name="anomaly_refs" required />
+    </label>
+    <button>确认补传时序倒置</button>
+  </form>
+
+  <div class="signoffs">
+    <h2>WebAuthn 签署（step-up）</h2>
+    <form method="post" action="/stations/signoff/production">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="credential_id" id="prod-cred" />
+      <input type="hidden" name="authenticator_data" id="prod-auth" />
+      <input type="hidden" name="client_data_json" id="prod-client" />
+      <input type="hidden" name="signature" id="prod-sig" />
+      <button type="button" data-webauthn="production">调用 WebAuthn（生产签署）</button>
+      <button type="submit">生产签署</button>
+    </form>
+
+    <form method="post" action="/stations/signoff/quality">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="batch_id" value={@batch_id} />
+      <input type="hidden" name="credential_id" id="qa-cred" />
+      <input type="hidden" name="authenticator_data" id="qa-auth" />
+      <input type="hidden" name="client_data_json" id="qa-client" />
+      <input type="hidden" name="signature" id="qa-sig" />
+      <button type="button" data-webauthn="quality">调用 WebAuthn（质量签署）</button>
+      <button type="submit">质量签署</button>
+    </form>
+  </div>
+</section>
